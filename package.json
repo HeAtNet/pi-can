@@ -1,0 +1,32 @@
+{
+  "name": "pi-can",
+  "version": "1.0.0",
+  "description": "This package is capable of controlling CAN BUS modules with SPI interface.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/HeAtNet/pi-can.git"
+  },
+  "keywords": [
+    "raspberry pi",
+    "raspberry",
+    "pi",
+    "raspi",
+    "rpi",
+    "can",
+    "canbus",
+    "can bus",
+    "bus",
+    "spi",
+    "mcp2515"
+  ],
+  "author": "Attila Herczog",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/HeAtNet/pi-can/issues"
+  },
+  "homepage": "https://github.com/HeAtNet/pi-can#readme"
+}
