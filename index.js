@@ -1,37 +1,50 @@
-let SPI = require('pi-spi');
+const SPI = require('pi-spi');
+const defs = require('./defs.js');
 
 class PiCan {
+  spiPort = null;
   spi = null;
-  opened = false;
   debug = false;
   constructor(spi, debug) {
+    this.spiPort = spi;
     this.debug = debug;
-    this.spi = SPI.initialize(spi);
     this.cout('New PiCan created');
   }
   cout(...message) {
     this.debug && console.log(...message);
   }
-  test() {
-    let test = Buffer.from([0xC0]);
+  open() {
+    this.spi = SPI.initialize(this.spiPort);
+    this.cout('PiCan opened');
+  }
+  close(cb) {
+    this.spi.close(typeof cb === 'function' ? cb : () => { });
+    this.spi = null;
+    this.cout('PiCan closed');
+  }
+  test(cb) {
+    let test = Buffer.from([defs.MCP_RESET]);
     this.spi.transfer(test, test.length, (e, d) => {
       if (e) console.error(e);
       else this.cout(d);
 
-      let test = Buffer.from([0x5, 0xF]);
+      let test = Buffer.from([defs.MCP_BITMOD, defs.MCP_DLC_MASK]);
       this.spi.transfer(test, test.length, (e, d) => {
         if (e) console.error(e);
         else this.cout(d);
 
-        let test = Buffer.from([0xE0, 0x80]);
+        let test = Buffer.from([defs.MODE_MASK, defs.MODE_CONFIG]);
         this.spi.transfer(test, test.length, (e, d) => {
           if (e) console.error(e);
           else this.cout(d);
 
-          let test = Buffer.from([0x3, 0xE, 0x0]);
+          let test = Buffer.from([defs.MCP_READ, defs.MCP_CANSTAT, 0]);
           this.spi.transfer(test, test.length, (e, d) => {
             if (e) console.error(e);
-            else this.cout(d, d[2] === 0x80 ? 'SUCCESS' : 'FAIL');
+            else {
+              this.cout(d, d[2] === defs.MODE_CONFIG ? 'SUCCESS' : 'FAIL');
+              typeof cb === 'function' && cb;
+            }
           });
         });
       });
