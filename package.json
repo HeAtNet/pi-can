@@ -28,5 +28,8 @@
   "bugs": {
     "url": "https://github.com/HeAtNet/pi-can/issues"
   },
-  "homepage": "https://github.com/HeAtNet/pi-can#readme"
+  "homepage": "https://github.com/HeAtNet/pi-can#readme",
+  "dependencies": {
+    "pi-spi": "^1.2.1"
+  }
 }
