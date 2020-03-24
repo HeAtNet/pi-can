@@ -71,6 +71,9 @@ class PiCan {
   mcp2515_readRegister(address) {
     return this.spi_readwrite([defs.MCP_READ, address, 0]).then(e => e[2])
   }
+  mcp2515_setRegister(address, value) {
+    return this.spi_readwrite([defs.MCP_WRITE, address, value]);
+  }
   mcp2515_requestNewMode(newmode) {
     return new Promise((resolve, reject) => {
       const startTime = new Date();
@@ -92,47 +95,279 @@ class PiCan {
       loop();
     });
   }
+  getMode() {
+    return this.mcp2515_readRegister(defs.MCP_CANSTAT) & defs.MODE_MASK;
+  }
   mcp2515_setCANCTRL_Mode(newmode) {
     return new Promise((resolve, reject) => {
 
       // If the chip is asleep and we want to change mode then a manual wake needs to be done
       // This is done by setting the wake up interrupt flag
       // This undocumented trick was found at https://github.com/mkleemann/can/blob/master/can_sleep_mcp2515.c
-      /*
-      if ((getMode()) == MODE_SLEEP && newmode != MODE_SLEEP) {
-        // Make sure wake interrupt is enabled
-        byte wakeIntEnabled = (mcp2515_readRegister(MCP_CANINTE) & MCP_WAKIF);
-        if (!wakeIntEnabled) {
-          mcp2515_modifyRegister(MCP_CANINTE, MCP_WAKIF, MCP_WAKIF);
-        }
 
-        // Set wake flag (this does the actual waking up)
-        mcp2515_modifyRegister(MCP_CANINTF, MCP_WAKIF, MCP_WAKIF);
-
-        // Wait for the chip to exit SLEEP and enter LISTENONLY mode.
-
-        // If the chip is not connected to a CAN bus (or the bus has no other powered nodes) it will sometimes trigger the wake interrupt as soon
-        // as it's put to sleep, but it will stay in SLEEP mode instead of automatically switching to LISTENONLY mode.
-        // In this situation the mode needs to be manually set to LISTENONLY.
-
-        if (mcp2515_requestNewMode(MODE_LISTENONLY) != MCP2515_OK) {
-          return MCP2515_FAIL;
-        }
-
-        // Turn wake interrupt back off if it was originally off
-        if (!wakeIntEnabled) {
-          mcp2515_modifyRegister(MCP_CANINTE, MCP_WAKIF, 0);
-        }
-      }
-      */
-
-      // Clear wake flag
       Promise.resolve()
-        .then(() => this.mcp2515_modifyRegister(defs.MCP_CANINTF, defs.MCP_WAKIF, 0))
+        .then(() => this.getMode())
+        .then(mode => {
+          if (mode == defs.MODE_SLEEP && newmode != defs.MODE_SLEEP) {
+            // Make sure wake interrupt is enabled
+            let wakeIntEnabled;
+            this.mcp2515_readRegister(defs.MCP_CANINTE)
+              .then(reg => {
+                wakeIntEnabled = (reg & defs.MCP_WAKIF);
+                if (!wakeIntEnabled) {
+                  return this.mcp2515_modifyRegister(defs.MCP_CANINTE, defs.MCP_WAKIF, defs.MCP_WAKIF);
+                }
+              })
+              // Set wake flag (this does the actual waking up)
+              .then(() => this.mcp2515_modifyRegister(defs.MCP_CANINTF, defs.MCP_WAKIF, defs.MCP_WAKIF))
+              .then(() => this.mcp2515_requestNewMode(defs.MODE_LISTENONLY))
+              .then(mode => {
+                // If the chip is not connected to a CAN bus (or the bus has no other powered nodes) it will sometimes trigger the wake interrupt as soon
+                // as it's put to sleep, but it will stay in SLEEP mode instead of automatically switching to LISTENONLY mode.
+                // In this situation the mode needs to be manually set to LISTENONLY.
+
+                if (mode != defs.MCP2515_OK) {
+                  throw defs.MCP2515_FAIL;
+                }
+
+                // Turn wake interrupt back off if it was originally off
+                if (!wakeIntEnabled) {
+                  return this.mcp2515_modifyRegister(defs.MCP_CANINTE, defs.MCP_WAKIF, 0);
+                }
+              })
+          }
+        })
+
+        .then(() => this.mcp2515_modifyRegister(defs.MCP_CANINTF, defs.MCP_WAKIF, 0)) // Clear wake flag
+
         .then(() => this.mcp2515_requestNewMode(newmode))
         .then(resolve)
         .catch(reject)
     })
+  }
+  mcp2515_configRate(canSpeed, clock) {
+    return new Promise((resolve, reject) => {
+      let set = 1;
+      let cfg1;
+      let cfg2;
+      let cfg3;
+      switch (clock) {
+        case (defs.MCP_16MHz):
+          switch (canSpeed) {
+            case (defs.CAN_5KBPS):
+              cfg1 = defs.MCP_16MHz_5kBPS_CFG1;
+              cfg2 = defs.MCP_16MHz_5kBPS_CFG2;
+              cfg3 = defs.MCP_16MHz_5kBPS_CFG3;
+              break;
+
+            case (defs.CAN_10KBPS):
+              cfg1 = defs.MCP_16MHz_10kBPS_CFG1;
+              cfg2 = defs.MCP_16MHz_10kBPS_CFG2;
+              cfg3 = defs.MCP_16MHz_10kBPS_CFG3;
+              break;
+
+            case (defs.CAN_20KBPS):
+              cfg1 = defs.MCP_16MHz_20kBPS_CFG1;
+              cfg2 = defs.MCP_16MHz_20kBPS_CFG2;
+              cfg3 = defs.MCP_16MHz_20kBPS_CFG3;
+              break;
+
+            case (defs.CAN_25KBPS):
+              cfg1 = defs.MCP_16MHz_25kBPS_CFG1;
+              cfg2 = defs.MCP_16MHz_25kBPS_CFG2;
+              cfg3 = defs.MCP_16MHz_25kBPS_CFG3;
+              break;
+
+            case (defs.CAN_31K25BPS):
+              cfg1 = defs.MCP_16MHz_31k25BPS_CFG1;
+              cfg2 = defs.MCP_16MHz_31k25BPS_CFG2;
+              cfg3 = defs.MCP_16MHz_31k25BPS_CFG3;
+              break;
+
+            case (defs.CAN_33KBPS):
+              cfg1 = defs.MCP_16MHz_33kBPS_CFG1;
+              cfg2 = defs.MCP_16MHz_33kBPS_CFG2;
+              cfg3 = defs.MCP_16MHz_33kBPS_CFG3;
+              break;
+
+            case (defs.CAN_40KBPS):
+              cfg1 = defs.MCP_16MHz_40kBPS_CFG1;
+              cfg2 = defs.MCP_16MHz_40kBPS_CFG2;
+              cfg3 = defs.MCP_16MHz_40kBPS_CFG3;
+              break;
+
+            case (defs.CAN_50KBPS):
+              cfg1 = defs.MCP_16MHz_50kBPS_CFG1;
+              cfg2 = defs.MCP_16MHz_50kBPS_CFG2;
+              cfg3 = defs.MCP_16MHz_50kBPS_CFG3;
+              break;
+
+            case (defs.CAN_80KBPS):
+              cfg1 = defs.MCP_16MHz_80kBPS_CFG1;
+              cfg2 = defs.MCP_16MHz_80kBPS_CFG2;
+              cfg3 = defs.MCP_16MHz_80kBPS_CFG3;
+              break;
+
+            case (defs.CAN_83K3BPS):
+              cfg1 = defs.MCP_16MHz_83k3BPS_CFG1;
+              cfg2 = defs.MCP_16MHz_83k3BPS_CFG2;
+              cfg3 = defs.MCP_16MHz_83k3BPS_CFG3;
+              break;
+
+            case (defs.CAN_95KBPS):
+              cfg1 = defs.MCP_16MHz_95kBPS_CFG1;
+              cfg2 = defs.MCP_16MHz_95kBPS_CFG2;
+              cfg3 = defs.MCP_16MHz_95kBPS_CFG3;
+              break;
+
+            case (defs.CAN_100KBPS):
+              cfg1 = defs.MCP_16MHz_100kBPS_CFG1;
+              cfg2 = defs.MCP_16MHz_100kBPS_CFG2;
+              cfg3 = defs.MCP_16MHz_100kBPS_CFG3;
+              break;
+
+            case (defs.CAN_125KBPS):
+              cfg1 = defs.MCP_16MHz_125kBPS_CFG1;
+              cfg2 = defs.MCP_16MHz_125kBPS_CFG2;
+              cfg3 = defs.MCP_16MHz_125kBPS_CFG3;
+              break;
+
+            case (defs.CAN_200KBPS):
+              cfg1 = defs.MCP_16MHz_200kBPS_CFG1;
+              cfg2 = defs.MCP_16MHz_200kBPS_CFG2;
+              cfg3 = defs.MCP_16MHz_200kBPS_CFG3;
+              break;
+
+            case (defs.CAN_250KBPS):
+              cfg1 = defs.MCP_16MHz_250kBPS_CFG1;
+              cfg2 = defs.MCP_16MHz_250kBPS_CFG2;
+              cfg3 = defs.MCP_16MHz_250kBPS_CFG3;
+              break;
+
+            case (defs.CAN_500KBPS):
+              cfg1 = defs.MCP_16MHz_500kBPS_CFG1;
+              cfg2 = defs.MCP_16MHz_500kBPS_CFG2;
+              cfg3 = defs.MCP_16MHz_500kBPS_CFG3;
+              break;
+
+            case (defs.CAN_666KBPS):
+              cfg1 = defs.MCP_16MHz_666kBPS_CFG1;
+              cfg2 = defs.MCP_16MHz_666kBPS_CFG2;
+              cfg3 = defs.MCP_16MHz_666kBPS_CFG3;
+              break;
+
+            case (defs.CAN_1000KBPS):
+              cfg1 = defs.MCP_16MHz_1000kBPS_CFG1;
+              cfg2 = defs.MCP_16MHz_1000kBPS_CFG2;
+              cfg3 = defs.MCP_16MHz_1000kBPS_CFG3;
+              break;
+
+            default:
+              set = 0;
+              break;
+          }
+          break;
+
+        case (defs.MCP_8MHz):
+          switch (canSpeed) {
+            case (defs.CAN_5KBPS):
+              cfg1 = defs.MCP_8MHz_5kBPS_CFG1;
+              cfg2 = defs.MCP_8MHz_5kBPS_CFG2;
+              cfg3 = defs.MCP_8MHz_5kBPS_CFG3;
+              break;
+
+            case (defs.CAN_10KBPS):
+              cfg1 = defs.MCP_8MHz_10kBPS_CFG1;
+              cfg2 = defs.MCP_8MHz_10kBPS_CFG2;
+              cfg3 = defs.MCP_8MHz_10kBPS_CFG3;
+              break;
+
+            case (defs.CAN_20KBPS):
+              cfg1 = defs.MCP_8MHz_20kBPS_CFG1;
+              cfg2 = defs.MCP_8MHz_20kBPS_CFG2;
+              cfg3 = defs.MCP_8MHz_20kBPS_CFG3;
+              break;
+
+            case (defs.CAN_31K25BPS):
+              cfg1 = defs.MCP_8MHz_31k25BPS_CFG1;
+              cfg2 = defs.MCP_8MHz_31k25BPS_CFG2;
+              cfg3 = defs.MCP_8MHz_31k25BPS_CFG3;
+              break;
+
+            case (defs.CAN_40KBPS):
+              cfg1 = defs.MCP_8MHz_40kBPS_CFG1;
+              cfg2 = defs.MCP_8MHz_40kBPS_CFG2;
+              cfg3 = defs.MCP_8MHz_40kBPS_CFG3;
+              break;
+
+            case (defs.CAN_50KBPS):
+              cfg1 = defs.MCP_8MHz_50kBPS_CFG1;
+              cfg2 = defs.MCP_8MHz_50kBPS_CFG2;
+              cfg3 = defs.MCP_8MHz_50kBPS_CFG3;
+              break;
+
+            case (defs.CAN_80KBPS):
+              cfg1 = defs.MCP_8MHz_80kBPS_CFG1;
+              cfg2 = defs.MCP_8MHz_80kBPS_CFG2;
+              cfg3 = defs.MCP_8MHz_80kBPS_CFG3;
+              break;
+
+            case (defs.CAN_100KBPS):
+              cfg1 = defs.MCP_8MHz_100kBPS_CFG1;
+              cfg2 = defs.MCP_8MHz_100kBPS_CFG2;
+              cfg3 = defs.MCP_8MHz_100kBPS_CFG3;
+              break;
+
+            case (defs.CAN_125KBPS):
+              cfg1 = defs.MCP_8MHz_125kBPS_CFG1;
+              cfg2 = defs.MCP_8MHz_125kBPS_CFG2;
+              cfg3 = defs.MCP_8MHz_125kBPS_CFG3;
+              break;
+
+            case (defs.CAN_200KBPS):
+              cfg1 = defs.MCP_8MHz_200kBPS_CFG1;
+              cfg2 = defs.MCP_8MHz_200kBPS_CFG2;
+              cfg3 = defs.MCP_8MHz_200kBPS_CFG3;
+              break;
+
+            case (defs.CAN_250KBPS):
+              cfg1 = defs.MCP_8MHz_250kBPS_CFG1;
+              cfg2 = defs.MCP_8MHz_250kBPS_CFG2;
+              cfg3 = defs.MCP_8MHz_250kBPS_CFG3;
+              break;
+
+            case (defs.CAN_500KBPS):
+              cfg1 = defs.MCP_8MHz_500kBPS_CFG1;
+              cfg2 = defs.MCP_8MHz_500kBPS_CFG2;
+              cfg3 = defs.MCP_8MHz_500kBPS_CFG3;
+              break;
+
+            case (defs.CAN_1000KBPS):
+              cfg1 = defs.MCP_8MHz_1000kBPS_CFG1;
+              cfg2 = defs.MCP_8MHz_1000kBPS_CFG2;
+              cfg3 = defs.MCP_8MHz_1000kBPS_CFG3;
+              break;
+
+            default:
+              set = 0;
+              break;
+          }
+          break;
+
+        default:
+          set = 0;
+          break;
+      }
+
+      if (set) {
+        this.mcp2515_setRegister(defs.MCP_CNF1, cfg1)
+          .then(() => this.mcp2515_setRegister(defs.MCP_CNF2, cfg2))
+          .then(() => this.mcp2515_setRegister(defs.MCP_CNF3, cfg3))
+          .then(() => resolve(defs.MCP2515_OK));
+      } else {
+        reject(defs.MCP2515_FAIL);
+      }
+    });
   }
   init(speedset, clockset) {
     if (typeof clockset === 'undefined') {
@@ -146,17 +381,27 @@ class PiCan {
         this.cout('Enter setting mode success');
       })
       .catch(error => {
+        this.cout('Enter setting mode fail');
+        throw error;
+      })
+
+      .then(() => this.mcp2515_configRate(speedset, clockset))
+      .then(() => {
+        this.cout('set rate success');
+      })
+      .catch(error => {
+        this.cout('set rate fail');
+        throw error;
+      })
+      .then(() => {
+        console.log('end')
+      })
+      .catch(error => {
         console.log('ERROR: ', error)
-      });
+        throw error;
+      })
 
     /*
-    // set boadrate
-    if (mcp2515_configRate(canSpeed, clock)) {
-        this.cout('set rate fall!!');
-        return res;
-    }
-    this.cout('set rate success!!');
-
     if (res == MCP2515_OK) {
 
         // init canbuffers
