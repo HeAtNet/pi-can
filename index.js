@@ -460,7 +460,7 @@ class PiCan {
   }
 
   // Public functions
-  init(speedset, clockset) {
+  begin(speedset, clockset) {
     if (typeof clockset === 'undefined') {
       clockset = defs.MCP_16MHz;
     }
@@ -506,7 +506,6 @@ class PiCan {
           resolve(defs.CAN_OK);
         })
         .catch(error => {
-          console.log('ERROR: ', error)
           reject(defs.CAN_FAILINIT);
         })
     })
