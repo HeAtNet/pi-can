@@ -1,10 +1,13 @@
 const SPI = require('pi-spi');
 const defs = require('./defs.js');
+const sleep = require('sleep');
+
 
 class PiCan {
   spi = null;
   debug = false;
   mcpMode = null;
+  nReservedTx = 0;
 
   static defs = defs;
   constructor(spi, debug) {
@@ -446,6 +449,29 @@ class PiCan {
         });
     });
   }
+  mcp2515_getNextFreeTXBuf() { // get Next free txbuf
+    return this.mcp2515_readStatus()
+      .then(status => {
+        status = status & defs.MCP_STAT_TX_PENDING_MASK
+        if (status == defs.MCP_STAT_TX_PENDING_MASK) {
+          throw defs.MCP_ALLTXBUSY; // All buffers are pending
+        }
+
+        return new Promise((resolve, reject) => {
+          // check all 3 TX-Buffers except reserved
+          let allBusy = true;
+          for (let i = 0; i < defs.MCP_N_TXBUFFERS - this.nReservedTx; i++) {
+            if ((status & this.txStatusPendingFlag(i)) == 0) {
+              let txbuf_n = this.txCtrlReg(i) + 1; // return SIDH-address of Buffer
+              this.mcp2515_modifyRegister(defs.MCP_CANINTF, this.txIfFlag(i), 0)
+                .then(() => resolve(defs.MCP2515_OK));
+              allBusy = false;
+            }
+          }
+          allBusy && reject(defs.MCP_ALLTXBUSY);
+        })
+      })
+  }
   readMsgBufID(status) {
     return new Promise((resolve, reject) => {
       if (status & defs.MCP_RX0IF) { // Msg in Buffer 0
@@ -457,6 +483,83 @@ class PiCan {
         reject(defs.CAN_NOMSG);
       }
     });
+  }
+  txStatusPendingFlag(i) {
+    switch (i) {
+      case 0:
+        return defs.MCP_STAT_TX0_PENDING;
+      case 1:
+        return defs.MCP_STAT_TX1_PENDING;
+      case 2:
+        return defs.MCP_STAT_TX2_PENDING;
+    }
+    return 0xff;
+  }
+  txCtrlReg(i) {
+    switch (i) {
+      case 0:
+        return defs.MCP_TXB0CTRL;
+      case 1:
+        return defs.MCP_TXB1CTRL;
+      case 2:
+        return defs.MCP_TXB2CTRL;
+    }
+    return defs.MCP_TXB2CTRL;
+  }
+  statusToTxBuffer(status) {
+    switch (status) {
+      case defs.MCP_TX0IF:
+        return 0;
+      case defs.MCP_TX1IF:
+        return 1;
+      case defs.MCP_TX2IF:
+        return 2;
+    }
+    return 0xff;
+  }
+  statusToTxSidh(status) {
+    switch (status) {
+      case defs.MCP_TX0IF:
+        return defs.MCP_TXB0SIDH;
+      case defs.MCP_TX1IF:
+        return defs.MCP_TXB1SIDH;
+      case defs.MCP_TX2IF:
+        return defs.MCP_TXB2SIDH;
+    }
+    return 0;
+  }
+  txSidhToRTS(sidh) {
+    switch (sidh) {
+      case defs.MCP_TXB0SIDH:
+        return defs.MCP_RTS_TX0;
+      case defs.MCP_TXB1SIDH:
+        return defs.MCP_RTS_TX1;
+      case defs.MCP_TXB2SIDH:
+        return defs.MCP_RTS_TX2;
+    }
+    return 0;
+  }
+  txSidhToTxLoad(sidh) {
+    switch (sidh) {
+      case defs.MCP_TXB0SIDH:
+        return defs.MCP_LOAD_TX0;
+      case defs.MCP_TXB1SIDH:
+        return defs.MCP_LOAD_TX1;
+      case defs.MCP_TXB2SIDH:
+        return defs.MCP_LOAD_TX2;
+    }
+    return 0;
+  }
+  txIfFlag(i) {
+    switch (i) {
+      case 0:
+        return defs.MCP_TX0IF;
+      case 1:
+        return defs.MCP_TX1IF;
+      case 2:
+        return defs.MCP_TX2IF;
+    }
+    return 0;
   }
 
   // Public functions
@@ -516,6 +619,60 @@ class PiCan {
   }
   readMsgBuf() {
     return this.readRxTxStatus().then(rxstat => this.readMsgBufID(rxstat))
+  }
+  sendMsgBuf(id, ext, rtrBit, len, buf) {
+    let txbuf_n;
+    return Promise.resolve()
+      .then(() =>
+        new Promise((resolve, reject) => { // Get txbuf_n
+          let timeOut = 0;
+          const loop = () => {
+            this.mcp2515_getNextFreeTXBuf()
+              .then(txbuf => {
+                txbuf_n = txbuf
+                resolve();
+              })
+              .catch(error => {
+                if (timeOut++ < defs.TIMEOUTVALUE) {
+                  sleep.usleep(10);
+                  loop();
+                } else {
+                  reject(defs.CAN_GETTXBFTIMEOUT);
+                }
+                console.log('error: ', error);
+              });
+          }
+          loop();
+        })
+      )
+      .then(() => {
+        console.log('SEND');
+      })
+      .catch(error => {
+        console.log('ERROR: ', error);
+      })
+    /*
+    .then(() => this.mcp2515_write_canMsg(txbuf_n, id, ext, rtrBit, len, buf))
+    .then(() =>
+      new Promise((resolve, reject) => {
+        let timeOut = 0;
+        const loop = () => {
+          this.mcp2515_readRegister(txbuf_n - 1).then(res1 => {
+            if (!(res1 & 0x08)) {
+              resolve();
+            } else if (timeOut++ < defs.TIMEOUTVALUE) {
+              sleep.usleep(10);
+              loop();
+            } else {
+              reject(defs.CAN_GETTXBFTIMEOUT);
+            }
+            console.log('error: ', error);
+          });
+        }
+        loop();
+      })
+    )
+    */
   }
 }
 

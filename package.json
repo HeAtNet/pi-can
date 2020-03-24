@@ -30,6 +30,7 @@
   },
   "homepage": "https://github.com/HeAtNet/pi-can#readme",
   "dependencies": {
-    "pi-spi": "^1.2.1"
+    "pi-spi": "^1.2.1",
+    "sleep": "^6.1.0"
   }
 }
