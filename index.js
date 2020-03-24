@@ -97,6 +97,9 @@ class PiCan {
       loop();
     });
   }
+  mcp2515_readStatus() {
+    return this.spi_readwrite([defs.MCP_READ_STATUS, 0]).then(e => e[1])
+  }
   setMode(opMode) {
     if (opMode != defs.MODE_SLEEP) {
       // if going to sleep, the value stored in opMode is not changed so that we can return to it later
@@ -389,6 +392,74 @@ class PiCan {
     promises.push(this.mcp2515_setRegister(defs.MCP_RXB1CTRL, 0));
     return Promise.all(promises);
   }
+  readRxTxStatus() {
+    return this.mcp2515_readStatus().then(stat => {
+      let ret = (stat & (defs.MCP_STAT_TXIF_MASK | defs.MCP_STAT_RXIF_MASK));
+      ret = (ret & defs.MCP_STAT_TX0IF ? defs.MCP_TX0IF : 0) |
+        (ret & defs.MCP_STAT_TX1IF ? defs.MCP_TX1IF : 0) |
+        (ret & defs.MCP_STAT_TX2IF ? defs.MCP_TX2IF : 0) |
+        (ret & defs.MCP_STAT_RXIF_MASK); // Rx bits happend to be same on status and MCP_CANINTF
+      return ret;
+    })
+  }
+  mcp2515_read_canMsg(buffer_load_addr) {
+    return new Promise((resolve, reject) => {
+
+      let bufData = []; //4
+      let writeToBus = [buffer_load_addr];
+
+      for (let i = 0; i < 4; i++) writeToBus.push(0); // 4 byte of bufData
+      writeToBus.push(0); // msgsize
+      for (let i = 0; /*i < len && */ i < defs.CAN_MAX_CHAR_IN_MESSAGE; i++) writeToBus.push(0); // dataOut
+
+      this.spi_readwrite(writeToBus)
+        .then(data => {
+          for (let i = 0; i < 4; i++) {
+            bufData[i] = data[i + 1];
+          }
+
+          let id = (bufData[defs.MCP_SIDH] << 3) + (bufData[defs.MCP_SIDL] >> 5);
+          let extended = false;
+          if ((bufData[defs.MCP_SIDL] & defs.MCP_TXB_EXIDE_M) == defs.MCP_TXB_EXIDE_M) {
+            /* extended id */
+            id = (id << 2) + (bufData[defs.MCP_SIDL] & 0x03);
+            id = (id << 8) + bufData[defs.MCP_EID8];
+            id = (id << 8) + bufData[defs.MCP_EID0];
+            extended = true;
+          }
+
+          let msgSize = data[5];
+          let len = msgSize & defs.MCP_DLC_MASK;
+          let rtrBit = (msgSize & defs.MCP_RTR_MASK) ? true : false;
+          let dataOut = [];
+          for (let i = 0; i < len && i < defs.CAN_MAX_CHAR_IN_MESSAGE; i++) {
+            dataOut[i] = data[6 + i];
+          }
+
+          resolve({
+            id: id,
+            ext: extended,
+            rtr: rtrBit,
+            size: msgSize,
+            data: rtrBit ? null : dataOut,
+          });
+        });
+    });
+  }
+  readMsgBufID(status) {
+    return new Promise((resolve, reject) => {
+      if (status & defs.MCP_RX0IF) { // Msg in Buffer 0
+        resolve(this.mcp2515_read_canMsg(defs.MCP_READ_RX0));
+      }
+      else if (status & MCP_RX1IF) { // Msg in Buffer 1
+        resolve(this.mcp2515_read_canMsg(defs.MCP_READ_RX1));
+      } else {
+        reject(defs.CAN_NOMSG);
+      }
+    });
+  }
+
+  // Public functions
   init(speedset, clockset) {
     if (typeof clockset === 'undefined') {
       clockset = defs.MCP_16MHz;
@@ -439,6 +510,13 @@ class PiCan {
           reject(defs.CAN_FAILINIT);
         })
     })
+  }
+  checkReceive() {
+    return this.mcp2515_readStatus()
+      .then(status => (status & defs.MCP_STAT_RXIF_MASK) ? defs.CAN_MSGAVAIL : defs.CAN_NOMSG);
+  }
+  readMsgBuf() {
+    return this.readRxTxStatus().then(rxstat => this.readMsgBufID(rxstat))
   }
 }
 
