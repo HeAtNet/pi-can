@@ -4,6 +4,8 @@ const defs = require('./defs.js');
 class PiCan {
   spi = null;
   debug = false;
+  mcpMode = null;
+
   static defs = defs;
   constructor(spi, debug) {
     this.debug = debug;
@@ -94,6 +96,13 @@ class PiCan {
       }
       loop();
     });
+  }
+  setMode(opMode) {
+    if (opMode != defs.MODE_SLEEP) {
+      // if going to sleep, the value stored in opMode is not changed so that we can return to it later
+      this.mcpMode = opMode;
+    }
+    return this.mcp2515_setCANCTRL_Mode(opMode);
   }
   getMode() {
     return this.mcp2515_readRegister(defs.MCP_CANSTAT) & defs.MODE_MASK;
@@ -369,72 +378,67 @@ class PiCan {
       }
     });
   }
+  mcp2515_initCANBuffers() {
+    const promises = [];
+    for (let i = 0; i < 14; i++) { // in-buffer loop
+      promises.push(this.mcp2515_setRegister(defs.MCP_TXB0CTRL + i, 0));
+      promises.push(this.mcp2515_setRegister(defs.MCP_TXB1CTRL + i, 0));
+      promises.push(this.mcp2515_setRegister(defs.MCP_TXB2CTRL + i, 0));
+    }
+    promises.push(this.mcp2515_setRegister(defs.MCP_RXB0CTRL, 0));
+    promises.push(this.mcp2515_setRegister(defs.MCP_RXB1CTRL, 0));
+    return Promise.all(promises);
+  }
   init(speedset, clockset) {
     if (typeof clockset === 'undefined') {
       clockset = defs.MCP_16MHz;
     }
 
-    Promise.resolve()
-      .then(() => this.mcp2515_reset())
-      .then(() => this.mcp2515_setCANCTRL_Mode(defs.MODE_CONFIG))
-      .then(() => {
-        this.cout('Enter setting mode success');
-      })
-      .catch(error => {
-        this.cout('Enter setting mode fail');
-        throw error;
-      })
+    return new Promise((resolve, reject) => {
+      Promise.resolve()
+        .then(() => this.mcp2515_reset())
 
-      .then(() => this.mcp2515_configRate(speedset, clockset))
-      .then(() => {
-        this.cout('set rate success');
-      })
-      .catch(error => {
-        this.cout('set rate fail');
-        throw error;
-      })
-      .then(() => {
-        console.log('end')
-      })
-      .catch(error => {
-        console.log('ERROR: ', error)
-        throw error;
-      })
+        .then(() => this.mcp2515_setCANCTRL_Mode(defs.MODE_CONFIG))
+        .then(() => {
+          this.cout('Enter setting mode success');
+        })
+        .catch(error => {
+          this.cout('Enter setting mode fail');
+          throw error;
+        })
 
-    /*
-    if (res == MCP2515_OK) {
+        .then(() => this.mcp2515_configRate(speedset, clockset))
+        .then(() => {
+          this.cout('set rate success');
+        })
+        .catch(error => {
+          this.cout('set rate fail');
+          throw error;
+        })
 
-        // init canbuffers
-        mcp2515_initCANBuffers();
-
-        // interrupt mode
-        mcp2515_setRegister(MCP_CANINTE, MCP_RX0IF | MCP_RX1IF);
-
-        #if (DEBUG_RXANY==1)
-        // enable both receive-buffers to receive any message and enable rollover
-        mcp2515_modifyRegister(MCP_RXB0CTRL,
-                               MCP_RXB_RX_MASK | MCP_RXB_BUKT_MASK,
-                               MCP_RXB_RX_ANY | MCP_RXB_BUKT_MASK);
-        mcp2515_modifyRegister(MCP_RXB1CTRL, MCP_RXB_RX_MASK,
-                               MCP_RXB_RX_ANY);
-        #else
+        .then(() => this.mcp2515_initCANBuffers())// init canbuffers
+        .then(() => this.mcp2515_setRegister(defs.MCP_CANINTE, defs.MCP_RX0IF | defs.MCP_RX1IF))// interrupt mode
         // enable both receive-buffers to receive messages with std. and ext. identifiers and enable rollover
-        mcp2515_modifyRegister(MCP_RXB0CTRL,
-                               MCP_RXB_RX_MASK | MCP_RXB_BUKT_MASK,
-                               MCP_RXB_RX_STDEXT | MCP_RXB_BUKT_MASK);
-        mcp2515_modifyRegister(MCP_RXB1CTRL, MCP_RXB_RX_MASK,
-                               MCP_RXB_RX_STDEXT);
-        #endif
-        // enter normal mode
-        res = setMode(MODE_NORMAL);
-        if (res) {
-            this.cout('Enter Normal Mode Fail!!');
-            return res;
-        }
+        .then(() => this.mcp2515_modifyRegister(defs.MCP_RXB0CTRL, defs.MCP_RXB_RX_MASK | defs.MCP_RXB_BUKT_MASK, defs.MCP_RXB_RX_STDEXT | defs.MCP_RXB_BUKT_MASK))
+        .then(() => this.mcp2515_modifyRegister(defs.MCP_RXB1CTRL, defs.MCP_RXB_RX_MASK, defs.MCP_RXB_RX_STDEXT))
 
-        this.cout('Enter Normal Mode Success!!');
-    }
-    return ((res == defs.MCP2515_OK) ? defs.CAN_OK : defs.CAN_FAILINIT);*/
+        .then(() => this.setMode(defs.MODE_NORMAL))
+        .then(() => {
+          this.cout('Enter Normal Mode Success');
+        })
+        .catch(error => {
+          this.cout('Enter Normal Mode Fail');
+          throw error;
+        })
+
+        .then(() => {
+          resolve(defs.CAN_OK);
+        })
+        .catch(error => {
+          console.log('ERROR: ', error)
+          reject(defs.CAN_FAILINIT);
+        })
+    })
   }
 }
 
