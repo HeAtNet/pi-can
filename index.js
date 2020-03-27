@@ -472,6 +472,28 @@ class PiCan {
         })
       })
   }
+  mcp2515_isTXBufFree(iBuf) {
+    return new Promise((resolve, reject) => {
+      let txbuf_n = 0x00;
+
+      if (iBuf >= defs.MCP_N_TXBUFFERS) {
+        reject(defs.MCP_ALLTXBUSY);
+        return;
+      }
+
+      this.mcp2515_readStatus()
+        .then(status => {
+          if ((status & this.txStatusPendingFlag(iBuf)) != 0) {
+            throw defs.MCP_ALLTXBUSY;
+          } else {
+            return defs.CAN_OK;
+          }
+        })
+        .then(() => this.mcp2515_modifyRegister(defs.MCP_CANINTF, this.txIfFlag(iBuf), 0))
+        .then(() => resolve(txCtrlReg(iBuf) + 1))
+        .catch(error => reject(error));
+    })
+  }
   mcp2515_id_to_buf(ext, id) {
     let canid = id & 0x0FFFF;
     let tbufdata = [0, 0, 0, 0];
@@ -704,6 +726,21 @@ class PiCan {
           loop();
         })
       )
+  }
+  trySendMsgBuf(id, ext, rtrBit, len, buf, iTxBuf) { // iTxBuf = 0..2
+    let promise;
+    iTxBuf = this.txCtrlReg(iTxBuf);
+
+    if (iTxBuf < defs.MCP_N_TXBUFFERS) { // Use specified buffer
+      promise = this.mcp2515_isTXBufFree(iTxBuf);
+    }
+    else {
+      promise = this.mcp2515_getNextFreeTXBuf();
+    }
+
+    return promise
+      .then(txbuf_n => this.mcp2515_write_canMsg(txbuf_n, id, ext, rtrBit, len, buf))
+      .then(() => defs.CAN_OK);
   }
 }
 
