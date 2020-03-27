@@ -462,9 +462,9 @@ class PiCan {
           let allBusy = true;
           for (let i = 0; i < defs.MCP_N_TXBUFFERS - this.nReservedTx; i++) {
             if ((status & this.txStatusPendingFlag(i)) == 0) {
-              let txbuf_n = this.txCtrlReg(i) + 1; // return SIDH-address of Buffer
+              // let txbuf_n = this.txCtrlReg(i) + 1; // return SIDH-address of Buffer
               this.mcp2515_modifyRegister(defs.MCP_CANINTF, this.txIfFlag(i), 0)
-                .then(() => resolve(defs.MCP2515_OK));
+                .then(() => resolve(this.txCtrlReg(i) + 1));
               allBusy = false;
             }
           }
@@ -472,12 +472,53 @@ class PiCan {
         })
       })
   }
+  mcp2515_id_to_buf(ext, id) {
+    let canid = id & 0x0FFFF;
+    let tbufdata = [0, 0, 0, 0];
+
+    if (ext) {
+      tbufdata[defs.MCP_EID0] = canid & 0xFF;
+      tbufdata[defs.MCP_EID8] = canid >> 8;
+      canid = id >> 16;
+      tbufdata[defs.MCP_SIDL] = canid & 0x03;
+      tbufdata[defs.MCP_SIDL] += (canid & 0x1C) << 3;
+      tbufdata[defs.MCP_SIDL] |= defs.MCP_TXB_EXIDE_M;
+      tbufdata[defs.MCP_SIDH] = canid >> 5;
+    }
+    else {
+      tbufdata[defs.MCP_SIDH] = canid >> 3;
+      tbufdata[defs.MCP_SIDL] = (canid & 0x07) << 5;
+      tbufdata[defs.MCP_EID0] = 0;
+      tbufdata[defs.MCP_EID8] = 0;
+    }
+    return tbufdata;
+  }
+  mcp2515_start_transmit(mcp_addr) { // start transmit
+    return this.spi_readwrite(this.txSidhToRTS(mcp_addr));
+  }
+  mcp2515_write_canMsg(buffer_sidh_addr, id, ext, rtrBit, len, buf) {
+    len = Math.min(len, 8);
+    len = Math.max(len, 0);
+    let load_addr = this.txSidhToTxLoad(buffer_sidh_addr);
+
+    let tbufdata = this.mcp2515_id_to_buf(ext, id);
+    let dlc = len | (rtrBit ? defs.MCP_RTR_MASK : 0);
+
+    let dataSend = [load_addr];
+    dataSend = dataSend.concat(tbufdata);
+    dataSend.push(dlc);
+    for (let i = 0; i < len && i < defs.CAN_MAX_CHAR_IN_MESSAGE; i++) {
+      dataSend.push(buf[i]);
+    }
+    this.spi_readwrite(dataSend)
+      .then(() => this.mcp2515_start_transmit(buffer_sidh_addr))
+  }
   readMsgBufID(status) {
     return new Promise((resolve, reject) => {
       if (status & defs.MCP_RX0IF) { // Msg in Buffer 0
         resolve(this.mcp2515_read_canMsg(defs.MCP_READ_RX0));
       }
-      else if (status & MCP_RX1IF) { // Msg in Buffer 1
+      else if (status & defs.MCP_RX1IF) { // Msg in Buffer 1
         resolve(this.mcp2515_read_canMsg(defs.MCP_READ_RX1));
       } else {
         reject(defs.CAN_NOMSG);
@@ -639,20 +680,22 @@ class PiCan {
                 } else {
                   reject(defs.CAN_GETTXBFTIMEOUT);
                 }
-                console.log('error: ', error);
               });
           }
           loop();
         })
       )
+
+      .then(() => this.mcp2515_write_canMsg(txbuf_n, id, ext, rtrBit, len, buf))
       .then(() => {
         console.log('SEND');
       })
       .catch(error => {
         console.log('ERROR: ', error);
       })
+
     /*
-    .then(() => this.mcp2515_write_canMsg(txbuf_n, id, ext, rtrBit, len, buf))
+    TODO: wait sent
     .then(() =>
       new Promise((resolve, reject) => {
         let timeOut = 0;
