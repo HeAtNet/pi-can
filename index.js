@@ -111,7 +111,7 @@ class PiCan {
     return this.mcp2515_setCANCTRL_Mode(opMode);
   }
   getMode() {
-    return this.mcp2515_readRegister(defs.MCP_CANSTAT) & defs.MODE_MASK;
+    return this.mcp2515_readRegister(defs.MCP_CANSTAT).then(mode => mode & defs.MODE_MASK);
   }
   mcp2515_setCANCTRL_Mode(newmode) {
     return new Promise((resolve, reject) => {
@@ -126,7 +126,7 @@ class PiCan {
           if (mode == defs.MODE_SLEEP && newmode != defs.MODE_SLEEP) {
             // Make sure wake interrupt is enabled
             let wakeIntEnabled;
-            this.mcp2515_readRegister(defs.MCP_CANINTE)
+            return this.mcp2515_readRegister(defs.MCP_CANINTE)
               .then(reg => {
                 wakeIntEnabled = (reg & defs.MCP_WAKIF);
                 if (!wakeIntEnabled) {
@@ -741,6 +741,28 @@ class PiCan {
     return promise
       .then(txbuf_n => this.mcp2515_write_canMsg(txbuf_n, id, ext, rtrBit, len, buf))
       .then(() => defs.CAN_OK);
+  }
+  sleep() {
+    return this.getMode()
+      .then(mode => {
+        if (mode != defs.MODE_SLEEP) {
+          return this.mcp2515_setCANCTRL_Mode(defs.MODE_SLEEP);
+        }
+        else {
+          return defs.CAN_OK;
+        }
+      })
+  }
+  wake() {
+    return this.getMode()
+      .then(mode => {
+        if (mode != this.mcpMode) {
+          return this.mcp2515_setCANCTRL_Mode(this.mcpMode);
+        }
+        else {
+          return defs.CAN_OK;
+        }
+      })
   }
 }
 
