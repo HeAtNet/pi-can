@@ -474,8 +474,6 @@ class PiCan {
   }
   mcp2515_isTXBufFree(iBuf) {
     return new Promise((resolve, reject) => {
-      let txbuf_n = 0x00;
-
       if (iBuf >= defs.MCP_N_TXBUFFERS) {
         reject(defs.MCP_ALLTXBUSY);
         return;
@@ -667,13 +665,8 @@ class PiCan {
           this.cout('Enter Normal Mode Fail');
           throw error;
         })
-
-        .then(() => {
-          resolve(defs.CAN_OK);
-        })
-        .catch(error => {
-          reject(defs.CAN_FAILINIT);
-        })
+        .then(() => resolve(defs.CAN_OK))
+        .catch(() => reject(defs.CAN_FAILINIT))
     })
   }
   checkReceive() {
