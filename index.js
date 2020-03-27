@@ -685,37 +685,25 @@ class PiCan {
           loop();
         })
       )
-
       .then(() => this.mcp2515_write_canMsg(txbuf_n, id, ext, rtrBit, len, buf))
-      .then(() => {
-        console.log('SEND');
-      })
-      .catch(error => {
-        console.log('ERROR: ', error);
-      })
-
-    /*
-    TODO: wait sent
-    .then(() =>
-      new Promise((resolve, reject) => {
-        let timeOut = 0;
-        const loop = () => {
-          this.mcp2515_readRegister(txbuf_n - 1).then(res1 => {
-            if (!(res1 & 0x08)) {
-              resolve();
-            } else if (timeOut++ < defs.TIMEOUTVALUE) {
-              sleep.usleep(10);
-              loop();
-            } else {
-              reject(defs.CAN_GETTXBFTIMEOUT);
-            }
-            console.log('error: ', error);
-          });
-        }
-        loop();
-      })
-    )
-    */
+      .then(() =>
+        new Promise((resolve, reject) => {
+          let timeOut = 0;
+          const loop = () => {
+            this.mcp2515_readRegister(txbuf_n - 1).then(res1 => {
+              if (!(res1 & 0x08)) {
+                resolve(defs.CAN_OK);
+              } else if (timeOut++ < defs.TIMEOUTVALUE) {
+                sleep.usleep(10);
+                loop();
+              } else {
+                reject(defs.CAN_GETTXBFTIMEOUT);
+              }
+            });
+          }
+          loop();
+        })
+      )
   }
 }
 
