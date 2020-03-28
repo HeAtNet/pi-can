@@ -910,6 +910,137 @@ class PiCan {
       .then(() => this.cout('set Filter success'))
       .then(() => readId)
   }
+  mcpPinMode(pin, mode) {
+    switch (pin) {
+      case defs.MCP_RX0BF:
+        switch (mode) {
+          case defs.MCP_PIN_HIZ:
+            return this.mcp2515_modifyRegister(defs.MCP_BFPCTRL, defs.B0BFE, 0);
+          case defs.MCP_PIN_INT:
+            return this.mcp2515_modifyRegister(defs.MCP_BFPCTRL, defs.B0BFM | defs.B0BFE, defs.B0BFM | defs.B0BFE);
+          case defs.MCP_PIN_OUT:
+            return this.mcp2515_modifyRegister(defs.MCP_BFPCTRL, defs.B0BFM | defs.B0BFE, defs.B0BFE);
+          default:
+            return Promise.reject(defs.MCP2515_FAIL);
+        }
+      case defs.MCP_RX1BF:
+        switch (mode) {
+          case defs.MCP_PIN_HIZ:
+            return this.mcp2515_modifyRegister(defs.MCP_BFPCTRL, defs.B1BFE, 0);
+          case defs.MCP_PIN_INT:
+            return this.mcp2515_modifyRegister(defs.MCP_BFPCTRL, defs.B1BFM | defs.B1BFE, defs.B1BFM | defs.B1BFE);
+          case defs.MCP_PIN_OUT:
+            return this.mcp2515_modifyRegister(defs.MCP_BFPCTRL, defs.B1BFM | defs.B1BFE, defs.B1BFE);
+          default:
+            return Promise.reject(defs.MCP2515_FAIL);
+        }
+      case defs.MCP_TX0RTS:
+        return this.mcp2515_setCANCTRL_Mode(defs.MODE_CONFIG)
+          .catch(error => {
+            this.cout('Entering Configuration Mode Failure...');
+            throw error;
+          })
+          .then(() => {
+            switch (mode) {
+              case defs.MCP_PIN_INT:
+                return this.mcp2515_modifyRegister(defs.MCP_TXRTSCTRL, defs.B0RTSM, defs.B0RTSM);
+              case defs.MCP_PIN_IN:
+                return this.mcp2515_modifyRegister(defs.MCP_TXRTSCTRL, defs.B0RTSM, 0);
+              default:
+                this.cout('Invalid pin mode request');
+                throw defs.MCP2515_FAIL;
+            }
+          })
+          .then(this.mcp2515_setCANCTRL_Mode(this.mcpMode))
+          .catch(error => {
+            this.cout('`Setting ID Mode Failure...');
+            throw error;
+          });
+      case defs.MCP_TX1RTS:
+        return this.mcp2515_setCANCTRL_Mode(defs.MODE_CONFIG)
+          .catch(error => {
+            this.cout('Entering Configuration Mode Failure...');
+            throw error;
+          })
+          .then(() => {
+            switch (mode) {
+              case defs.MCP_PIN_INT:
+                return this.mcp2515_modifyRegister(defs.MCP_TXRTSCTRL, defs.B1RTSM, defs.B1RTSM);
+              case defs.MCP_PIN_IN:
+                return this.mcp2515_modifyRegister(defs.MCP_TXRTSCTRL, defs.B1RTSM, 0);
+              default:
+                this.cout('Invalid pin mode request');
+                throw defs.MCP2515_FAIL;
+            }
+          })
+          .then(this.mcp2515_setCANCTRL_Mode(this.mcpMode))
+          .catch(error => {
+            this.cout('`Setting ID Mode Failure...');
+            throw error;
+          });
+      case defs.MCP_TX2RTS:
+        return this.mcp2515_setCANCTRL_Mode(defs.MODE_CONFIG)
+          .catch(error => {
+            this.cout('Entering Configuration Mode Failure...');
+            throw error;
+          })
+          .then(() => {
+            switch (mode) {
+              case defs.MCP_PIN_INT:
+                return this.mcp2515_modifyRegister(defs.MCP_TXRTSCTRL, defs.B2RTSM, defs.B2RTSM);
+              case defs.MCP_PIN_IN:
+                return this.mcp2515_modifyRegister(defs.MCP_TXRTSCTRL, defs.B2RTSM, 0);
+              default:
+                this.cout('Invalid pin mode request');
+                throw defs.MCP2515_FAIL;
+            }
+          })
+          .then(this.mcp2515_setCANCTRL_Mode(this.mcpMode))
+          .catch(error => {
+            this.cout('`Setting ID Mode Failure...');
+            throw error;
+          });
+      default:
+        this.cout('Invalid pin for mode request');
+        return Promise.reject(defs.MCP2515_FAIL);
+    }
+  }
+  mcpDigitalWrite(pin, mode) {
+    switch (pin) {
+      case defs.MCP_RX0BF:
+        if (mode) {
+          return this.mcp2515_modifyRegister(defs.MCP_BFPCTRL, defs.B0BFS, defs.B0BFS);
+        } else {
+          return this.mcp2515_modifyRegister(defs.MCP_BFPCTRL, defs.B0BFS, 0);
+        }
+      case defs.MCP_RX1BF:
+        if (mode) {
+          return this.mcp2515_modifyRegister(defs.MCP_BFPCTRL, defs.B1BFS, defs.B1BFS);
+        } else {
+          return this.mcp2515_modifyRegister(defs.MCP_BFPCTRL, defs.B1BFS, 0);
+        }
+      default:
+        this.cout("Invalid pin for mcpDigitalWrite\r\n");
+        return Promise.reject(defs.MCP2515_FAIL);
+    }
+  }
+  mcpDigitalRead(pin) {
+    switch (pin) {
+      case defs.MCP_RX0BF:
+        return this.mcp2515_readRegister(defs.MCP_BFPCTRL).then(reg => (reg & defs.B0BFS) > 0);
+      case defs.MCP_RX1BF:
+        return this.mcp2515_readRegister(defs.MCP_BFPCTRL).then(reg => (reg & defs.B1BFS) > 0);
+      case defs.MCP_TX0RTS:
+        return this.mcp2515_readRegister(defs.MCP_TXRTSCTRL).then(reg => (reg & defs.B0RTS) > 0);
+      case defs.MCP_TX1RTS:
+        return this.mcp2515_readRegister(defs.MCP_TXRTSCTRL).then(reg => (reg & defs.B1RTS) > 0);
+      case defs.MCP_TX2RTS:
+        return this.mcp2515_readRegister(defs.MCP_TXRTSCTRL).then(reg => (reg & defs.B2RTS) > 0);
+      default:
+        this.cout('Invalid pin for mcpDigitalRead');
+        return Promise.reject(defs.MCP2515_FAIL);
+    }
+  }
 }
 
 module.exports = PiCan;
