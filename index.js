@@ -858,6 +858,58 @@ class PiCan {
       .then(() => this.cout('set Filter success'))
       .then(() => readId)
   }
+  init_Mask(num, ext, ulData) {
+    this.cout('Begin to set Filter');
+    return this.mcp2515_setCANCTRL_Mode(defs.MODE_CONFIG)
+      .catch(error => {
+        this.cout('Enter setting mode fall!');
+        throw error;
+      })
+      .then(() => {
+        switch (num) {
+          case 0:
+            return this.mcp2515_write_id(defs.MCP_RXM0SIDH, ext, ulData);
+          case 1:
+            return this.mcp2515_write_id(defs.MCP_RXM1SIDH, ext, ulData);
+          default:
+            throw defs.MCP2515_FAIL;
+        }
+      })
+      .then(() => this.mcp2515_setCANCTRL_Mode(this.mcpMode))
+      .catch(error => {
+        this.cout('Enter normal mode fall\nSet filter fail!!');
+        throw error;
+      })
+      .then(() => this.cout('set Filter success'))
+      .then(() => defs.MCP2515_OK)
+  }
+  getMask(num) {
+    this.cout('Begin to set Filter');
+    let readId;
+    return this.mcp2515_setCANCTRL_Mode(defs.MODE_CONFIG)
+      .catch(error => {
+        this.cout('Enter setting mode fall!');
+        throw error;
+      })
+      .then(() => {
+        switch (num) {
+          case 0:
+            return this.mcp2515_read_id(defs.MCP_RXM0SIDH);
+          case 1:
+            return this.mcp2515_read_id(defs.MCP_RXM1SIDH);
+          default:
+            throw defs.MCP2515_FAIL;
+        }
+      })
+      .then(e => readId = e)
+      .then(() => this.mcp2515_setCANCTRL_Mode(this.mcpMode))
+      .catch(error => {
+        this.cout('Enter normal mode fall\nSet filter fail!!');
+        throw error;
+      })
+      .then(() => this.cout('set Filter success'))
+      .then(() => readId)
+  }
 }
 
 module.exports = PiCan;
