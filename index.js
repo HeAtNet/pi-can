@@ -1,3 +1,18 @@
+/**
+ * pi-can
+ *
+ * This package is capable of controlling CAN BUS modules with SPI interface.
+ * I used the MCP2515 CAN BUS module, but might be useful for other CAN modules.
+ *
+ * This package is created according to this arduino library:
+ * https://github.com/Seeed-Studio/CAN_BUS_Shield
+ *
+ *
+ * @link https://github.com/HeAtNet/pi-can
+ * @contact
+ * @author Attila Herczog (herczog.at97@gmail.com)
+ */
+
 const SPI = require('pi-spi');
 const defs = require('./defs.js');
 const sleep = require('sleep');
@@ -10,6 +25,24 @@ class PiCan {
   nReservedTx = 0;
 
   static defs = defs;
+  static rxPin(pin) {
+    switch (pin) {
+      case 0:
+        return PiCan.defs.MCP_RX0BF;
+      case 1:
+        return PiCan.defs.MCP_RX1BF;
+    }
+  }
+  static txPin(pin) {
+    switch (pin) {
+      case 0:
+        return PiCan.defs.MCP_TX0RTS;
+      case 1:
+        return PiCan.defs.MCP_TX1RTS;
+      case 2:
+        return PiCan.defs.MCP_TX2RTS;
+    }
+  }
   constructor(spi, debug) {
     this.debug = debug;
     this.spi = SPI.initialize(spi);
@@ -43,7 +76,7 @@ class PiCan {
           this.spi.transfer(test, test.length, (e, d) => {
             if (e) console.error(e);
             else {
-              this.cout(d, d[2] === defs.MODE_CONFIG ? 'SUCCESS' : 'FAIL');
+              console.log(d, d[2] === defs.MODE_CONFIG ? 'SUCCESS' : 'FAIL');
               typeof cb === 'function' && cb;
             }
           });
@@ -67,7 +100,7 @@ class PiCan {
     })
   }
   mcp2515_reset() {
-    this.cout('mcp2515_reset');
+    this.cout('MCP2515_reset');
     return this.spi_readwrite(defs.MCP_RESET);
   }
   mcp2515_modifyRegister(address, mask, data) {
@@ -422,12 +455,14 @@ class PiCan {
   mcp2515_read_canMsg(buffer_load_addr) {
     return new Promise((resolve, reject) => {
 
-      let bufData = []; //4
+      let bufData = [];
       let writeToBus = [buffer_load_addr];
 
-      for (let i = 0; i < 4; i++) writeToBus.push(0); // 4 byte of bufData
-      writeToBus.push(0); // msgsize
-      for (let i = 0; /*i < len && */ i < defs.CAN_MAX_CHAR_IN_MESSAGE; i++) writeToBus.push(0); // dataOut
+      for (let i = 0; i < 4; i++) writeToBus.push(0);
+      writeToBus.push(0);
+      for (let i = 0; /*i < len && */ i < defs.CAN_MAX_CHAR_IN_MESSAGE; i++) writeToBus.push(0);
+      //              |--> You should stop receiving bytes after i>=msgSize & defs.MCP_DLC_MASK, but I don't know how.
+      //                   Tried to use multiple spi_readwrite, but transfer closed because of the SPI's CS pin.
 
       this.spi_readwrite(writeToBus)
         .then(data => {
@@ -463,7 +498,7 @@ class PiCan {
         });
     });
   }
-  mcp2515_getNextFreeTXBuf() { // get Next free txbuf
+  mcp2515_getNextFreeTXBuf() {
     return this.mcp2515_readStatus()
       .then(status => {
         status = status & defs.MCP_STAT_TX_PENDING_MASK
@@ -476,7 +511,6 @@ class PiCan {
           let allBusy = true;
           for (let i = 0; i < defs.MCP_N_TXBUFFERS - this.nReservedTx; i++) {
             if ((status & this.txStatusPendingFlag(i)) == 0) {
-              // let txbuf_n = this.txCtrlReg(i) + 1; // return SIDH-address of Buffer
               this.mcp2515_modifyRegister(defs.MCP_CANINTF, this.txIfFlag(i), 0)
                 .then(() => resolve(this.txCtrlReg(i) + 1));
               allBusy = false;
@@ -546,7 +580,7 @@ class PiCan {
     let tbufdata = this.mcp2515_id_to_buf(ext, id);
     return this.mcp2515_setRegisterS(mcp_addr, tbufdata, 4);
   }
-  mcp2515_start_transmit(mcp_addr) { // start transmit
+  mcp2515_start_transmit(mcp_addr) {
     return this.spi_readwrite(this.txSidhToRTS(mcp_addr));
   }
   mcp2515_write_canMsg(buffer_sidh_addr, id, ext, rtrBit, len, buf) {
@@ -566,7 +600,7 @@ class PiCan {
     this.spi_readwrite(dataSend)
       .then(() => this.mcp2515_start_transmit(buffer_sidh_addr))
   }
-  readMsgBufID(status) {
+  readMsgID(status) {
     return new Promise((resolve, reject) => {
       if (status & defs.MCP_RX0IF) { // Msg in Buffer 0
         resolve(this.mcp2515_read_canMsg(defs.MCP_READ_RX0));
@@ -671,31 +705,31 @@ class PiCan {
           this.cout('Enter setting mode success');
         })
         .catch(error => {
-          this.cout('Enter setting mode fail');
+          this.cout('Enter setting mode failed');
           throw error;
         })
 
         .then(() => this.mcp2515_configRate(speedset, clockset))
         .then(() => {
-          this.cout('set rate success');
+          this.cout('Set rate success');
         })
         .catch(error => {
-          this.cout('set rate fail');
+          this.cout('Set rate failed');
           throw error;
         })
 
-        .then(() => this.mcp2515_initCANBuffers())// init canbuffers
-        .then(() => this.mcp2515_setRegister(defs.MCP_CANINTE, defs.MCP_RX0IF | defs.MCP_RX1IF))// interrupt mode
+        .then(() => this.mcp2515_initCANBuffers())
+        .then(() => this.mcp2515_setRegister(defs.MCP_CANINTE, defs.MCP_RX0IF | defs.MCP_RX1IF)) // interrupt mode
         // enable both receive-buffers to receive messages with std. and ext. identifiers and enable rollover
         .then(() => this.mcp2515_modifyRegister(defs.MCP_RXB0CTRL, defs.MCP_RXB_RX_MASK | defs.MCP_RXB_BUKT_MASK, defs.MCP_RXB_RX_STDEXT | defs.MCP_RXB_BUKT_MASK))
         .then(() => this.mcp2515_modifyRegister(defs.MCP_RXB1CTRL, defs.MCP_RXB_RX_MASK, defs.MCP_RXB_RX_STDEXT))
 
         .then(() => this.setMode(defs.MODE_NORMAL))
         .then(() => {
-          this.cout('Enter Normal Mode Success');
+          this.cout('Enter normal mode success');
         })
         .catch(error => {
-          this.cout('Enter Normal Mode Fail');
+          this.cout('Enter normal mode failed');
           throw error;
         })
         .then(() => resolve(defs.CAN_OK))
@@ -706,14 +740,14 @@ class PiCan {
     return this.mcp2515_readStatus()
       .then(status => (status & defs.MCP_STAT_RXIF_MASK) ? defs.CAN_MSGAVAIL : defs.CAN_NOMSG);
   }
-  readMsgBuf() {
-    return this.readRxTxStatus().then(rxstat => this.readMsgBufID(rxstat))
+  readMsg() {
+    return this.readRxTxStatus().then(rxstat => this.readMsgID(rxstat))
   }
-  sendMsgBuf(id, ext, rtrBit, len, buf) {
+  sendMsg(id, ext, rtrBit, len, buf) {
     let txbuf_n;
     return Promise.resolve()
       .then(() =>
-        new Promise((resolve, reject) => { // Get txbuf_n
+        new Promise((resolve, reject) => {
           let timeOut = 0;
           const loop = () => {
             this.mcp2515_getNextFreeTXBuf()
@@ -753,7 +787,7 @@ class PiCan {
         })
       )
   }
-  trySendMsgBuf(id, ext, rtrBit, len, buf, iTxBuf) { // iTxBuf = 0..2
+  trySendMsg(id, ext, rtrBit, len, buf, iTxBuf) { // iTxBuf = 0..2
     let promise;
     iTxBuf = this.txCtrlReg(iTxBuf);
 
@@ -790,11 +824,11 @@ class PiCan {
         }
       })
   }
-  init_Filt(num, ext, ulData) {
-    this.cout('Begin to set Filter');
+  setFilter(num, ext, ulData) {
+    this.cout('Begin to set filter');
     return this.mcp2515_setCANCTRL_Mode(defs.MODE_CONFIG)
       .catch(error => {
-        this.cout('Enter setting mode fall!');
+        this.cout('Enter setting mode failed');
         throw error;
       })
       .then(() => {
@@ -817,18 +851,19 @@ class PiCan {
       })
       .then(() => this.mcp2515_setCANCTRL_Mode(this.mcpMode))
       .catch(error => {
-        this.cout('Enter normal mode fall\nSet filter fail!!');
+        this.cout('Enter normal mode failed');
+        this.cout('Set filter failed');
         throw error;
       })
-      .then(() => this.cout('set Filter success'))
+      .then(() => this.cout('Set filter success'))
       .then(() => defs.MCP2515_OK)
   }
   getFilter(num) {
-    this.cout('Begin to set Filter');
+    this.cout('Begin to set filter');
     let readId;
     return this.mcp2515_setCANCTRL_Mode(defs.MODE_CONFIG)
       .catch(error => {
-        this.cout('Enter setting mode fall!');
+        this.cout('Enter setting mode failed');
         throw error;
       })
       .then(() => {
@@ -852,17 +887,18 @@ class PiCan {
       .then(e => readId = e)
       .then(() => this.mcp2515_setCANCTRL_Mode(this.mcpMode))
       .catch(error => {
-        this.cout('Enter normal mode fall\nSet filter fail!!');
+        this.cout('Enter normal mode failed');
+        this.cout('Set filter failed');
         throw error;
       })
-      .then(() => this.cout('set Filter success'))
+      .then(() => this.cout('Set filter success'))
       .then(() => readId)
   }
-  init_Mask(num, ext, ulData) {
-    this.cout('Begin to set Filter');
+  setMask(num, ext, ulData) {
+    this.cout('Begin to set filter');
     return this.mcp2515_setCANCTRL_Mode(defs.MODE_CONFIG)
       .catch(error => {
-        this.cout('Enter setting mode fall!');
+        this.cout('Enter setting mode failed');
         throw error;
       })
       .then(() => {
@@ -877,18 +913,19 @@ class PiCan {
       })
       .then(() => this.mcp2515_setCANCTRL_Mode(this.mcpMode))
       .catch(error => {
-        this.cout('Enter normal mode fall\nSet filter fail!!');
+        this.cout('Enter normal mode failed');
+        this.cout('Set filter failed');
         throw error;
       })
-      .then(() => this.cout('set Filter success'))
+      .then(() => this.cout('Set filter success'))
       .then(() => defs.MCP2515_OK)
   }
   getMask(num) {
-    this.cout('Begin to set Filter');
+    this.cout('Begin to set filter');
     let readId;
     return this.mcp2515_setCANCTRL_Mode(defs.MODE_CONFIG)
       .catch(error => {
-        this.cout('Enter setting mode fall!');
+        this.cout('Enter setting mode failed');
         throw error;
       })
       .then(() => {
@@ -904,13 +941,14 @@ class PiCan {
       .then(e => readId = e)
       .then(() => this.mcp2515_setCANCTRL_Mode(this.mcpMode))
       .catch(error => {
-        this.cout('Enter normal mode fall\nSet filter fail!!');
+        this.cout('Enter normal mode failed');
+        this.cout('Set filter failed');
         throw error;
       })
-      .then(() => this.cout('set Filter success'))
+      .then(() => this.cout('Set filter success'))
       .then(() => readId)
   }
-  mcpPinMode(pin, mode) {
+  pinMode(pin, mode) {
     switch (pin) {
       case defs.MCP_RX0BF:
         switch (mode) {
@@ -937,7 +975,7 @@ class PiCan {
       case defs.MCP_TX0RTS:
         return this.mcp2515_setCANCTRL_Mode(defs.MODE_CONFIG)
           .catch(error => {
-            this.cout('Entering Configuration Mode Failure...');
+            this.cout('Entering configuration mode failed');
             throw error;
           })
           .then(() => {
@@ -953,13 +991,13 @@ class PiCan {
           })
           .then(this.mcp2515_setCANCTRL_Mode(this.mcpMode))
           .catch(error => {
-            this.cout('`Setting ID Mode Failure...');
+            this.cout('`Setting ID mode failed');
             throw error;
           });
       case defs.MCP_TX1RTS:
         return this.mcp2515_setCANCTRL_Mode(defs.MODE_CONFIG)
           .catch(error => {
-            this.cout('Entering Configuration Mode Failure...');
+            this.cout('Entering configuration mode failed');
             throw error;
           })
           .then(() => {
@@ -975,13 +1013,13 @@ class PiCan {
           })
           .then(this.mcp2515_setCANCTRL_Mode(this.mcpMode))
           .catch(error => {
-            this.cout('`Setting ID Mode Failure...');
+            this.cout('`Setting ID mode failed');
             throw error;
           });
       case defs.MCP_TX2RTS:
         return this.mcp2515_setCANCTRL_Mode(defs.MODE_CONFIG)
           .catch(error => {
-            this.cout('Entering Configuration Mode Failure...');
+            this.cout('Entering configuration mode failed');
             throw error;
           })
           .then(() => {
@@ -997,7 +1035,7 @@ class PiCan {
           })
           .then(this.mcp2515_setCANCTRL_Mode(this.mcpMode))
           .catch(error => {
-            this.cout('`Setting ID Mode Failure...');
+            this.cout('`Setting ID mode failed');
             throw error;
           });
       default:
@@ -1005,7 +1043,7 @@ class PiCan {
         return Promise.reject(defs.MCP2515_FAIL);
     }
   }
-  mcpDigitalWrite(pin, mode) {
+  digitalWrite(pin, mode) {
     switch (pin) {
       case defs.MCP_RX0BF:
         if (mode) {
@@ -1020,11 +1058,11 @@ class PiCan {
           return this.mcp2515_modifyRegister(defs.MCP_BFPCTRL, defs.B1BFS, 0);
         }
       default:
-        this.cout("Invalid pin for mcpDigitalWrite\r\n");
+        this.cout('Invalid pin for digitalWrite');
         return Promise.reject(defs.MCP2515_FAIL);
     }
   }
-  mcpDigitalRead(pin) {
+  digitalRead(pin) {
     switch (pin) {
       case defs.MCP_RX0BF:
         return this.mcp2515_readRegister(defs.MCP_BFPCTRL).then(reg => (reg & defs.B0BFS) > 0);
@@ -1037,7 +1075,7 @@ class PiCan {
       case defs.MCP_TX2RTS:
         return this.mcp2515_readRegister(defs.MCP_TXRTSCTRL).then(reg => (reg & defs.B2RTS) > 0);
       default:
-        this.cout('Invalid pin for mcpDigitalRead');
+        this.cout('Invalid pin for digitalRead');
         return Promise.reject(defs.MCP2515_FAIL);
     }
   }
