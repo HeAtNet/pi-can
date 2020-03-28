@@ -79,6 +79,20 @@ class PiCan {
   mcp2515_setRegister(address, value) {
     return this.spi_readwrite([defs.MCP_WRITE, address, value]);
   }
+  mcp2515_readRegisterS(address, n) {
+    let dataOut = [defs.MCP_READ, address];
+    for (let i = 0; i < n && i < defs.CAN_MAX_CHAR_IN_MESSAGE; i++) {
+      dataOut.push(0);
+    }
+    return this.spi_readwrite(dataOut).then(data => data.slice(2));
+  }
+  mcp2515_setRegisterS(address, values, n) {
+    let dataOut = [defs.MCP_WRITE, address];
+    for (let i = 0; i < n; i++) {
+      dataOut.push(values[i]);
+    }
+    return this.spi_readwrite(dataOut);
+  }
   mcp2515_requestNewMode(newmode) {
     return new Promise((resolve, reject) => {
       const startTime = new Date();
@@ -513,6 +527,25 @@ class PiCan {
     }
     return tbufdata;
   }
+  mcp2515_read_id(mcp_addr) {
+    return this.mcp2515_readRegisterS(mcp_addr, 4)
+      .then(tbufdata => {
+        let id = (tbufdata[defs.MCP_SIDH] << 3) + (tbufdata[defs.MCP_SIDL] >> 5);
+        let ext = false;
+        if ((tbufdata[defs.MCP_SIDL] & defs.MCP_TXB_EXIDE_M) == defs.MCP_TXB_EXIDE_M) {
+          // extended id
+          id = (id << 2) + (tbufdata[defs.MCP_SIDL] & 0x03);
+          id = (id << 8) + tbufdata[defs.MCP_EID8];
+          id = (id << 8) + tbufdata[defs.MCP_EID0];
+          ext = true;
+        }
+        return { id, ext };
+      });
+  }
+  mcp2515_write_id(mcp_addr, ext, id) {
+    let tbufdata = this.mcp2515_id_to_buf(ext, id);
+    return this.mcp2515_setRegisterS(mcp_addr, tbufdata, 4);
+  }
   mcp2515_start_transmit(mcp_addr) { // start transmit
     return this.spi_readwrite(this.txSidhToRTS(mcp_addr));
   }
@@ -756,6 +789,74 @@ class PiCan {
           return defs.CAN_OK;
         }
       })
+  }
+  init_Filt(num, ext, ulData) {
+    this.cout('Begin to set Filter');
+    return this.mcp2515_setCANCTRL_Mode(defs.MODE_CONFIG)
+      .catch(error => {
+        this.cout('Enter setting mode fall!');
+        throw error;
+      })
+      .then(() => {
+        switch (num) {
+          case 0:
+            return this.mcp2515_write_id(defs.MCP_RXF0SIDH, ext, ulData);
+          case 1:
+            return this.mcp2515_write_id(defs.MCP_RXF1SIDH, ext, ulData);
+          case 2:
+            return this.mcp2515_write_id(defs.MCP_RXF2SIDH, ext, ulData);
+          case 3:
+            return this.mcp2515_write_id(defs.MCP_RXF3SIDH, ext, ulData);
+          case 4:
+            return this.mcp2515_write_id(defs.MCP_RXF4SIDH, ext, ulData);
+          case 5:
+            return this.mcp2515_write_id(defs.MCP_RXF5SIDH, ext, ulData);
+          default:
+            throw defs.MCP2515_FAIL;
+        }
+      })
+      .then(() => this.mcp2515_setCANCTRL_Mode(this.mcpMode))
+      .catch(error => {
+        this.cout('Enter normal mode fall\nSet filter fail!!');
+        throw error;
+      })
+      .then(() => this.cout('set Filter success'))
+      .then(() => defs.MCP2515_OK)
+  }
+  getFilter(num) {
+    this.cout('Begin to set Filter');
+    let readId;
+    return this.mcp2515_setCANCTRL_Mode(defs.MODE_CONFIG)
+      .catch(error => {
+        this.cout('Enter setting mode fall!');
+        throw error;
+      })
+      .then(() => {
+        switch (num) {
+          case 0:
+            return this.mcp2515_read_id(defs.MCP_RXF0SIDH);
+          case 1:
+            return this.mcp2515_read_id(defs.MCP_RXF1SIDH);
+          case 2:
+            return this.mcp2515_read_id(defs.MCP_RXF2SIDH);
+          case 3:
+            return this.mcp2515_read_id(defs.MCP_RXF3SIDH);
+          case 4:
+            return this.mcp2515_read_id(defs.MCP_RXF4SIDH);
+          case 5:
+            return this.mcp2515_read_id(defs.MCP_RXF5SIDH);
+          default:
+            throw defs.MCP2515_FAIL;
+        }
+      })
+      .then(e => readId = e)
+      .then(() => this.mcp2515_setCANCTRL_Mode(this.mcpMode))
+      .catch(error => {
+        this.cout('Enter normal mode fall\nSet filter fail!!');
+        throw error;
+      })
+      .then(() => this.cout('set Filter success'))
+      .then(() => readId)
   }
 }
 
