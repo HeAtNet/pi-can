@@ -76,7 +76,7 @@ can.sendMsg(123, false, false, 3, [1, 2, 3])
     })
 ```
 
-### Applying fiilters to a message
+### Applying filters to a message
 ```javascript
 can.begin(PiCan.defs.CAN_500KBPS)
 .then(() => can.setMask(0, false, 0x7ff))
@@ -121,7 +121,7 @@ Creates a new instance of this module.
 >> If set to true, you will get logs in the console about the current state of the program.
 
 ### begin(speedset, clockset)
-Initialize the module, than set speed and clock.
+Initializes the module, than set speed and clock.
 > speedset:
 >> Any of these values:  
 >> ```javascript
