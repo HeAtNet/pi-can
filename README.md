@@ -101,9 +101,9 @@ can.digitalWrite(PiCan.rxPin(0), true);
 can.digitalWrite(PiCan.rxPin(1), false);
 
 // Read from input
-piCan.digitalRead(PiCan.txPin(0)).then(value=>console.log(value));
-piCan.digitalRead(PiCan.txPin(1)).then(value=>console.log(value));
-piCan.digitalRead(PiCan.txPin(2)).then(value=>console.log(value));
+can.digitalRead(PiCan.txPin(0)).then(value=>console.log(value));
+can.digitalRead(PiCan.txPin(1)).then(value=>console.log(value));
+can.digitalRead(PiCan.txPin(2)).then(value=>console.log(value));
 // You can also read written output value. Use rxPin with digitalRead.
 ```
 **IMPORTANT**: TX is the input, RX is the output
