@@ -253,7 +253,15 @@ Gets a filter value.
 >> ```
 
 ### setMask(num, ext, ulData)
-Sets a mask to the filters.
+Sets a mask to the filters.  
+There are two different masks. It is for the two different receive buffers.  
+You should set the same mask for each receive buffer.  
+The message will be received if this logic returns true:
+```
+(RECEIVED_ID & MASK) == (FILTER & MASK)
+// & means bitwise and.
+```
+So, you can turn off masks and filters, if both masks are set to 0.
 > num
 >> The number of the mask.  
 >> Number `0` or `1`
@@ -293,6 +301,9 @@ Set pin mode on GPIO
 >> ```
 >> `MCP_PIN_IN` cannot be applied to RX pins.  
 >> `MCP_PIN_HIZ` and `MCP_PIN_IN` cannot be applied to TX pins.
+>
+> RETURN
+>> `Promise`
 
 ### digitalWrite(pin, mode)
 Writes data to a GPIO output *(to RX pin)*
@@ -339,3 +350,9 @@ Get TX GPIO pin.
 
 ### static defs
 PiCan.defs contains all definitions for this module.
+
+## Donation
+If this project was useful for you, you can give me a cup of coffee :)  
+Thank You!
+
+[![paypal](https://www.paypalobjects.com/en_US/i/btn/btn_donateCC_LG.gif)](https://www.paypal.com/cgi-bin/webscr?cmd=_s-xclick&hosted_button_id=3SZWN97PX92UC)
