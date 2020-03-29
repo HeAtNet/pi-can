@@ -204,7 +204,7 @@ Sends a message to the CAN network.
 >> If rejected the return value can be `PiCan.defs.CAN_GETTXBFTIMEOUT`
 
 
-### trySendMsg(id, ext, rtrBit, len, buf, iTxBuf) { // iTxBuf = 0..2
+### trySendMsg(id, ext, rtrBit, len, buf, iTxBuf) {
 Tries to send a message through a specified transfer buffer.
 > iTxBuf
 >> The transfer buffer's number.  
@@ -272,16 +272,70 @@ Gets a mask value.
 > Parameters: Same as setFilter.
 
 ### pinMode(pin, mode)
+Set pin mode on GPIO
+> pin
+>> Any of these values:  
+>> ```javascript
+>> PiCan.rxPin(0)
+>> PiCan.rxPin(1)
+>> PiCan.txPin(0)
+>> PiCan.txPin(1)
+>> PiCan.txPin(2)
+>> ```
+>
+> mode
+>> Any of these values:  
+>> ```javascript
+>> PiCan.defs.MCP_PIN_HIZ
+>> PiCan.defs.MCP_PIN_INT
+>> PiCan.defs.MCP_PIN_OUT
+>> PiCan.defs.MCP_PIN_IN
+>> ```
+>> `MCP_PIN_IN` cannot be applied to RX pins.  
+>> `MCP_PIN_HIZ` and `MCP_PIN_IN` cannot be applied to TX pins.
 
 ### digitalWrite(pin, mode)
+Writes data to a GPIO output *(to RX pin)*
+> pin
+>> `PiCan.rxPin(0)` or `PiCan.rxPin(1)`
+>
+> mode
+>> `true` or `false`
+>
+> RETURN
+>> `Promise`
 
 ### digitalRead(pin)
-
-
-### TODO: Extended ID generator function
+Reads data from a GPIO input *(from TX pin)*
+> pin
+>> Any of these values  
+>> ```javascript
+>> PiCan.rxPin(0)
+>> PiCan.rxPin(1)
+>> PiCan.txPin(0)
+>> PiCan.txPin(1)
+>> PiCan.txPin(2)
+>> ```
+>
+> RETURN
+>> `Promise`  
+>> If fulfilled the return can be `true` or `false`
 
 ### static rxPin(pin)
+Get RX GPIO pin.
+> pin
+>> `0` or `1`
+>
+> RETURN
+>> `PiCan.defs.MCP_RX0BF` or `PiCan.defs.MCP_RX1BF`
 
 ### static txPin(pin)
+Get TX GPIO pin.
+> pin
+>> `0`, `1` or `2`
+>
+> RETURN
+>> `PiCan.defs.MCP_TX0RTS`, `PiCan.defs.MCP_TX1RTS` or `PiCan.defs.MCP_TX2RTS`
 
 ### static defs
+PiCan.defs contains all definitions for this module.
