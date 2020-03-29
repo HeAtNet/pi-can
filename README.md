@@ -110,29 +110,166 @@ piCan.digitalRead(PiCan.txPin(2)).then(value=>console.log(value));
 
 ## API
 
-TODO
+### new PiCan(spi, debug)
+Creates a new instance of this module.
+> spi:
+>> SPI device  
+>> Usually it is `'/dev/spidev0.0'` or `'/dev/spidev0.1'`.
+>
+> debug:
+>> `true` of `false`  
+>> If set to true, you will get logs in the console about the current state of the program.
 
 ### begin(speedset, clockset)
+Initialize the module and set speed and clock.
+> speedset:
+>> Any of these values:  
+>> ```javascript
+>> PiCan.defs.CAN_5KBPS  
+>> PiCan.defs.CAN_10KBPS  
+>> PiCan.defs.CAN_20KBPS  
+>> PiCan.defs.CAN_25KBPS  
+>> PiCan.defs.CAN_31K25BPS  
+>> PiCan.defs.CAN_33KBPS  
+>> PiCan.defs.CAN_40KBPS  
+>> PiCan.defs.CAN_50KBPS  
+>> PiCan.defs.CAN_80KBPS  
+>> PiCan.defs.CAN_83K3BPS  
+>> PiCan.defs.CAN_95KBPS  
+>> PiCan.defs.CAN_100KBPS  
+>> PiCan.defs.CAN_125KBPS  
+>> PiCan.defs.CAN_200KBPS  
+>> PiCan.defs.CAN_250KBPS  
+>> PiCan.defs.CAN_500KBPS  
+>> PiCan.defs.CAN_666KBPS  
+>> PiCan.defs.CAN_1000KBPS  
+>> ```
+>> This speed needs to be consistent between the CAN nodes.  
+>> You need to set this, there is no default value.
+>
+> clockset:
+>> MCP_16MHz *(default)* or  
+>> MCP_8MHz
+>
+> RETURN
+>> `Promise`
 
 ### checkReceive()
+Returns the status of the receive buffers.
+> RETURN
+>> `Promise`  
+>> If fulfilled the return value can be `PiCan.defs.CAN_MSGAVAIL` or `PiCan.defs.CAN_NOMSG`
 
 ### readMsg()
+Returns a message from the receive buffers.
+> RETURN
+>> `Promise`  
+>> If fulfilled the return value is an object like this:  
+>> ```javascript
+>> {
+>>   id: number, // The ID of the message
+>>   ext: boolean, // Extended frame
+>>   rtr: boolean, // Remote transmission request
+>>   size: number, // Message length
+>>   data: number[], // Message data
+>> }
+>> // Message data is an empty array if RTR received
+>> ```
 
 ### sendMsg(id, ext, rtrBit, len, buf)
+Sends a message to the CAN network.
+> id
+>> The ID of the message.  
+>> Accepts **number** value.
+>
+> ext
+>> True if you want to send an extended frame.  
+>> Accepts **boolean** value.
+>
+> rtrBit
+>> True if you want to send a remote request.  
+>> Accepts **boolean** value.
+>
+> len
+>> The length of the message  
+>> Accepts **number** value from 0 to 8.
+>
+> buf
+>> The content of the message  
+>> Accepts an **array** of numbers. Needs to contain between 0 and 8 numbers.  
+>> If rtrBit === true, this shuld be an empty array.
+>
+> RETURN
+>> `Promise`  
+>> If rejected the return value can be `PiCan.defs.CAN_GETTXBFTIMEOUT`
+
 
 ### trySendMsg(id, ext, rtrBit, len, buf, iTxBuf) { // iTxBuf = 0..2
+Tries to send a message through a specified transfer buffer.
+> iTxBuf
+>> The transfer buffer's number.  
+>> Accepts `0`, `1` or `2`
+>
+> See other parameters above, at the sendMsg description.
 
 ### sleep()
+Takes the module into sleep mode.
+> RETURN
+>> `Promise`
 
 ### wake()
+Wakes up the module
+> RETURN
+>> `Promise`
 
 ### setFilter(num, ext, ulData)
+Sets a filter to the recived messages.  
+You can use up to 6 filters *(from 0 to 5)*
+> num
+>> The number of the filter.  
+>> Number between `0` and `5`
+>
+> ext
+>> Extended ID, `boolean`
+>
+> ulData
+>> The accepted ID, `number`
+>
+> RETURN
+>> `Promise`
 
 ### getFilter(num)
+Gets a filter value.
+> num
+>> The number of the filter
+>
+> RETURN
+>> An object like this:
+>> ```javascript
+>> {
+>>   id: number, // Filter ID
+>>   ext: number // Is ID extended
+>> }
+>> ```
 
 ### setMask(num, ext, ulData)
+Sets a mask to the filters.
+> num
+>> The number of the mask.  
+>> Number `0` or `1`
+>
+> ext
+>> Extended ID, `boolean`
+>
+> ulData
+>> The applied mask on the filter, `number`
+>
+> RETURN
+>> `Promise`
 
-### getMask(num) 
+### getMask(num)
+Gets a mask value.
+> Parameters: Same as setFilter.
 
 ### pinMode(pin, mode)
 
