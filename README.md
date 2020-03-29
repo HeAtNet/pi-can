@@ -6,20 +6,20 @@
 # pi-can
 
 This package is capable of controlling CAN BUS modules with SPI interface.  
-I have used the MCP2515 CAN BUS module, but might be useful for other CAN modules.
+I used the MCP2515 CAN BUS module, but might be useful for other CAN modules.
 
 This package is created according to this arduino library:
 https://github.com/Seeed-Studio/CAN_BUS_Shield
 
-Currently, there is a major limitation in this software. Receiving a messege is quite slow. You can only receive about 10 messages in a second. I cannot resolve this issue yet. If you have any idea how to fix this, please let me know. (herczog.at97@gmail.com) Or you can send a pull request with the solution.
+Currently, there is a major limitation on this software. Receiving a messege is quite slow. You can only receive about 10 messages in a second. I couldn't resolve this issue yet. If you have any idea how to fix this, please let me know. (herczog.at97@gmail.com) Or you can send a pull request with the solution.
 
 ## Installation
 
-Firstly you need to install Node.js. I am using `node v12.16.1` and `npm 6.14.3`.  
+Firstly, you need to install Node.js. I am using `node v12.16.1` and `npm 6.14.3`.  
 Follow this tutorial for installation:
 [How to Install Node.js and npm on Raspberry Pi](https://linuxize.com/post/how-to-install-node-js-on-raspberry-pi/ "Installation guide for Node.js")
 
-Secondly you need to create an npm project.
+Secondly, you need to create an npm project.
 
 After that, you can install PI-CAN node module.  
 Use:
@@ -121,7 +121,7 @@ Creates a new instance of this module.
 >> If set to true, you will get logs in the console about the current state of the program.
 
 ### begin(speedset, clockset)
-Initialize the module and set speed and clock.
+Initialize the module, than set speed and clock.
 > speedset:
 >> Any of these values:  
 >> ```javascript
@@ -254,9 +254,9 @@ Gets a filter value.
 
 ### setMask(num, ext, ulData)
 Sets a mask to the filters.  
-There are two different masks. It is for the two different receive buffers.  
+There are two different masks. They are for the two different receive buffers.  
 You should set the same mask for each receive buffer.  
-The message will be received if this logic returns true:
+The message will be received, if this logic returns true:
 ```
 (RECEIVED_ID & MASK) == (FILTER & MASK)
 // & means bitwise and.
@@ -280,7 +280,7 @@ Gets a mask value.
 > Parameters: Same as setFilter.
 
 ### pinMode(pin, mode)
-Set pin mode on GPIO
+Sets pin mode on GPIO
 > pin
 >> Any of these values:  
 >> ```javascript
@@ -333,7 +333,7 @@ Reads data from a GPIO input *(from TX pin)*
 >> If fulfilled the return can be `true` or `false`
 
 ### static rxPin(pin)
-Get RX GPIO pin.
+Gets RX GPIO pin.
 > pin
 >> `0` or `1`
 >
@@ -341,7 +341,7 @@ Get RX GPIO pin.
 >> `PiCan.defs.MCP_RX0BF` or `PiCan.defs.MCP_RX1BF`
 
 ### static txPin(pin)
-Get TX GPIO pin.
+Gets TX GPIO pin.
 > pin
 >> `0`, `1` or `2`
 >
