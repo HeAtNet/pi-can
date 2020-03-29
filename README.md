@@ -11,8 +11,6 @@ I used the MCP2515 CAN BUS module, but might be useful for other CAN modules.
 This package is created according to this arduino library:
 https://github.com/Seeed-Studio/CAN_BUS_Shield
 
-Currently, there is a major limitation on this software. Receiving a messege is quite slow. You can only receive about 10 messages in a second. I couldn't resolve this issue yet. If you have any idea how to fix this, please let me know. (herczog.at97@gmail.com) Or you can send a pull request with the solution.
-
 ## Installation
 
 Firstly, you need to install Node.js. I am using `node v12.16.1` and `npm 6.14.3`.  
